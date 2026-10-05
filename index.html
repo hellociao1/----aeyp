@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>汪汪队3D动画 - 终极还原版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #000; font-family: 'Microsoft YaHei', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; position: relative; }
+        
+        /* 加载画面 */
+        .loader {
+            position: absolute; inset: 0; background: #000; z-index: 999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.8s;
+        }
+        .loader.hidden { opacity: 0; pointer-events: none; }
+        .loader-paw { font-size: 60px; animation: spin 1.2s infinite linear; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .loader-text { color: #fff; margin-top: 16px; font-size: 16px; letter-spacing: 4px; opacity: 0.8; }
+        
+        .cut-red {
+            position: absolute; inset: 0; background: #e63946; z-index: 100;
+            opacity: 0; pointer-events: none; transition: opacity 0.08s;
+        }
+        .cut-red.active { opacity: 1; }
+       
+        .badge-scene {
+            position: absolute; inset: 0; background: #0066cc; z-index: 50;
+            display: none; overflow: hidden;
+        }
+        .badge-scene.active { display: block; }
+        .circuit-line {
+            position: absolute; background: rgba(100, 220, 255, 0.4); height: 3px;
+            border-radius: 2px;
+        }
+        .badge-shield {
+            position: absolute; width: 100px; height: 115px;
+            clip-path: polygon(50% 0%, 100% 20%, 100% 75%, 50% 100%, 0% 75%, 0% 20%);
+            display: flex; align-items: center; justify-content: center;
+            border: 3px solid rgba(255,255,255,0.9);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            opacity: 0; transform: scale(0) rotate(-10deg);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .badge-shield.show { opacity: 1; transform: scale(1) rotate(0deg); }
+        .badge-shield .symbol { font-size: 48px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+        
+        /* 结束卡 */
+        .end-card {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.85);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            color: rgba(255,255,255,0.6); z-index: 80;
+            backdrop-filter: blur(10px);
+        }
+        .end-card.active { display: flex; }
+        .end-avatar {
+            width: 70px; height: 70px; border-radius: 50%; background: #333;
+            margin-bottom: 16px; border: 2px solid rgba(255,255,255,0.2);
+            overflow: hidden; display: flex; align-items: center; justify-content: center;
+            font-size: 36px;
+        }
+        .end-id { font-size: 16px; letter-spacing: 2px; margin-bottom: 8px; }
+        .end-name { font-size: 20px; color: rgba(255,255,255,0.9); margin-bottom: 20px; }
+        .end-logo { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+        .red-box { background: #ff2442; color: white; padding: 4px 10px; border-radius: 6px; font-size: 14px; font-weight: bold; }
+        
+        /* 鬼畜特效层 */
+        .glitch-layer {
+            position: absolute; inset: 0; pointer-events: none; z-index: 60;
+            opacity: 0; mix-blend-mode: screen;
+            background: repeating-linear-gradient(
+                0deg, transparent, transparent 2px, rgba(255,0,0,0.1) 2px, rgba(255,0,0,0.1) 4px
+            );
+        }
+        .glitch-layer.active { opacity: 1; animation: glitchMove 0.1s infinite; }
+        @keyframes glitchMove {
+            0% { transform: translate(0); }
+            20% { transform: translate(-4px, 2px); }
+            40% { transform: translate(4px, -2px); }
+            60% { transform: translate(-2px, 4px); }
+            80% { transform: translate(2px, -4px); }
+            100% { transform: translate(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <div class="loader" id="loader">
+        <div class="loader-paw">🐾</div>
+        <div class="loader-text">正在渲染冒险湾...</div>
+    </div>
+    
+    <div class="cut-red" id="cutRed"></div>
+    <div class="glitch-layer" id="glitchLayer"></div>
+    
+    <div class="badge-scene" id="badgeScene">
+        <!-- 手绘风格电路线条 -->
+        <div class="circuit-line" style="width:200px; top:20%; left:10%; transform:rotate(-5deg);"></div>
+        <div class="circuit-line" style="width:300px; top:35%; left:60%; transform:rotate(3deg);"></div>
+        <div class="circuit-line" style="width:150px; top:60%; left:5%; transform:rotate(-2deg);"></div>
+        <div class="circuit-line" style="width:250px; top:75%; left:50%; transform:rotate(4deg);"></div>
+        <div class="circuit-line" style="width:180px; top:45%; left:80%; transform:rotate(-3deg);"></div>
+        
+        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:380px; height:280px;">
+            <div class="badge-shield" style="background:#4361ee; top:0; left:40px;" id="b0"><div class="symbol">⭐</div></div>
+            <div class="badge-shield" style="background:#e63946; top:0; left:160px;" id="b1"><div class="symbol">🔥</div></div>
+            <div class="badge-shield" style="background:#2a9d8f; top:0; left:280px;" id="b2"><div class="symbol">♻️</div></div>
+            <div class="badge-shield" style="background:#ff9f1c; top:130px; left:40px;" id="b3"><div class="symbol">⚓</div></div>
+            <div class="badge-shield" style="background:#ffd166; top:130px; left:160px;" id="b4"><div class="symbol">🔧</div></div>
+            <div class="badge-shield" style="background:#ff9ebb; top:130px; left:280px;" id="b5"><div class="symbol">🌪️</div></div>
+        </div>
+    </div>
+    
+    <div class="end-card" id="endCard">
+        <div class="end-avatar">🦌</div>
+        <div class="end-id">小红书号：7707184756</div>
+        <div class="end-name">温之夏～</div>
+        <div class="end-logo">
+            <div class="red-box">小红书</div>
+            <span style="font-size:14px;">你的生活指南</span>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 50, 220);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xfff5e6, 1.0);
+sun.position.set(50, 80, 40);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -60; sun.shadow.camera.right = 60;
+sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
+scene.add(sun);
+
+function mat(c) { return new THREE.MeshLambertMaterial({ color: c, flatShading: true }); }
+const M = {
+    red: mat(0xe63946), blue: mat(0x4361ee), darkBlue: mat(0x1d3557),
+    green: mat(0x2a9d8f), grass: mat(0x52b788), darkGrass: mat(0x2d6a4f),
+    yellow: mat(0xffd166), orange: mat(0xff9f1c), pink: mat(0xff9ebb),
+    white: mat(0xf1faee), grey: mat(0xadb5bd), darkGrey: mat(0x495057),
+    black: mat(0x212529), skin: mat(0xffcdb2), brown: mat(0x8d5524),
+    road: mat(0x495057), sea: mat(0x48cae4), glass: mat(0xa8dadc),
+    silver: mat(0xc0c0c0)
+};
+
+const towerGroup = new THREE.Group();
+const cityGroup = new THREE.Group();
+const rescueGroup = new THREE.Group();
+scene.add(towerGroup, cityGroup, rescueGroup);
+cityGroup.visible = false;
+rescueGroup.visible = false;
+
+// 海洋
+const seaGeo = new THREE.PlaneGeometry(800, 800, 60, 60);
+const sea = new THREE.Mesh(seaGeo, M.sea);
+sea.rotation.x = -Math.PI/2; sea.position.y = -4;
+towerGroup.add(sea);
+
+// 岛屿
+const island = new THREE.Mesh(new THREE.CylinderGeometry(55, 58, 6, 7), M.grass);
+island.position.y = -3; island.receiveShadow = true;
+towerGroup.add(island);
+
+// 道路
+const road = new THREE.Mesh(new THREE.BoxGeometry(7, 0.2, 60), M.road);
+road.position.set(0, 0.1, 28); road.receiveShadow = true;
+towerGroup.add(road);
+// 箭头
+const arrowShape = new THREE.Shape();
+arrowShape.moveTo(0, 3); arrowShape.lineTo(2.5, -2); arrowShape.lineTo(0.8, -2);
+arrowShape.lineTo(0.8, -5); arrowShape.lineTo(-0.8, -5);
+arrowShape.lineTo(-0.8, -2); arrowShape.lineTo(-2.5, -2);
+const arrow = new THREE.Mesh(new THREE.ExtrudeGeometry(arrowShape, {depth:0.15, bevelEnabled:false}), M.grey);
+arrow.rotation.x = Math.PI/2; arrow.position.set(0, 0.25, 55);
+towerGroup.add(arrow);
+
+// 门框（开场穿越）
+const gateGroup = new THREE.Group();
+const gateMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a, flatShading: true });
+const gatePostGeo = new THREE.BoxGeometry(4, 35, 4);
+const gateL = new THREE.Mesh(gatePostGeo, gateMat);
+gateL.position.set(-10, 17.5, 50);
+const gateR = new THREE.Mesh(gatePostGeo, gateMat);
+gateR.position.set(10, 17.5, 50);
+const gateTop = new THREE.Mesh(new THREE.BoxGeometry(24, 5, 4), gateMat);
+gateTop.position.set(0, 37.5, 50);
+gateGroup.add(gateL, gateR, gateTop);
+towerGroup.add(gateGroup);
+
+// 瞭望塔
+const tower = new THREE.Group();
+const base = new THREE.Mesh(new THREE.CylinderGeometry(18, 20, 2, 8), M.road);
+base.position.y = 1; base.receiveShadow = true; base.castShadow = true;
+tower.add(base);
+
+const t1 = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 5.5, 16, 8), M.blue);
+t1.position.y = 10; t1.castShadow = true; tower.add(t1);
+
+const ring1 = new THREE.Mesh(new THREE.TorusGeometry(5.2, 0.4, 8, 16), M.yellow);
+ring1.position.y = 18; ring1.rotation.x = Math.PI/2; tower.add(ring1);
+
+const t2 = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 4.5, 12, 8), M.white);
+t2.position.y = 24; tower.add(t2);
+
+const room = new THREE.Mesh(new THREE.CylinderGeometry(8, 7, 7, 8), M.blue);
+room.position.y = 33.5; room.castShadow = true; tower.add(room);
+
+for(let i=0; i<8; i++) {
+    const a = (i/8)*Math.PI*2;
+    const win = new THREE.Mesh(new THREE.BoxGeometry(2.8, 3.5, 0.3), M.glass);
+    win.position.set(Math.cos(a)*8.5, 33.5, Math.sin(a)*8.5);
+    win.lookAt(0, 33.5, 0); tower.add(win);
+}
+
+const roof = new THREE.Mesh(new THREE.ConeGeometry(9, 6, 8), M.red);
+roof.position.y = 40; roof.castShadow = true; tower.add(roof);
+
+const roofRim = new THREE.Mesh(new THREE.TorusGeometry(8.5, 0.5, 8, 16), M.yellow);
+roofRim.position.y = 37; roofRim.rotation.x = Math.PI/2; tower.add(roofRim);
+
+const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 7), M.yellow);
+ant.position.y = 46; tower.add(ant);
+const antBall = new THREE.Mesh(new THREE.SphereGeometry(0.6), M.red);
+antBall.position.y = 49.5; tower.add(antBall);
+
+// 徽章盾牌
+const shieldG = new THREE.Group();
+const shield = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.2, 0.5, 6), M.grey);
+shield.rotation.x = Math.PI/2; shieldG.add(shield);
+const paw = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 6), M.black);
+paw.scale.y = 0.6; paw.position.z = 0.3; shieldG.add(paw);
+shieldG.position.set(0, 33.5, 8);
+tower.add(shieldG);
+
+towerGroup.add(tower);
+
+// 螺旋滑梯
+const slidePoints = [];
+for(let i=0; i<=25; i++) {
+    const t = i/25;
+    const a = t * Math.PI * 3;
+    const y = 30 - t * 29;
+    const r = 7 + t * 4;
+    slidePoints.push(new THREE.Vector3(Math.cos(a)*r, Math.max(y, 0.5), Math.sin(a)*r));
+}
+const slideCurve = new THREE.CatmullRomCurve3(slidePoints);
+const slide = new THREE.Mesh(new THREE.TubeGeometry(slideCurve, 100, 1.4, 10, false), mat(0xd4a373));
+slide.castShadow = true; towerGroup.add(slide);
+
+for(let i=0; i<20; i++) {
+    const t = i/20;
+    const pos = slideCurve.getPoint(t);
+    const tan = slideCurve.getTangent(t);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.15, 8, 16), i%2===0?M.yellow:M.black);
+    ring.position.copy(pos); ring.lookAt(pos.clone().add(tan));
+    towerGroup.add(ring);
+}
+
+// 狗屋
+const houseCfgs = [
+    { c: M.red, p: [-11, 0, 2] }, { c: M.orange, p: [-8, 0, 8] },
+    { c: M.yellow, p: [-2, 0, 11] }, { c: M.blue, p: [5, 0, 9] },
+    { c: M.green, p: [10, 0, 4] }, { c: M.pink, p: [9, 0, -5] }
+];
+const houses = [];
+houseCfgs.forEach((cfg, i) => {
+    const hg = new THREE.Group();
+    const box = new THREE.Mesh(new THREE.BoxGeometry(4, 3.2, 4), cfg.c);
+    box.position.y = 1.6; box.castShadow = true; hg.add(box);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.2, 0.1), M.black);
+    door.position.set(0, 1.1, 2.01); hg.add(door);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(3, 2, 4), cfg.c);
+    roof.position.y = 4.1; roof.rotation.y = Math.PI/4; hg.add(roof);
+    const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.1, 6), M.yellow);
+    badge.position.set(0, 2.5, 2.06); badge.rotation.x = Math.PI/2; hg.add(badge);
+    hg.position.set(...cfg.p);
+    towerGroup.add(hg);
+    houses.push(hg);
+});
+
+// ==========================================
+// 角色系统 - 高还原
+// ==========================================
+const dogs = [];
+const dogGroup = new THREE.Group();
+towerGroup.add(dogGroup);
+
+function createDog(i, color, hatColor) {
+    const g = new THREE.Group();
+    
+    // 身体
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.8, 2.4), color);
+    body.position.y = 1.4; body.castShadow = true; g.add(body);
+    const belly = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.4, 0.1), M.white);
+    belly.position.set(0, 1.35, 1.21); g.add(belly);
+    
+    // 头
+    const head = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.5, 1.7), M.brown);
+    head.position.y = 2.8; g.add(head);
+    
+    // 嘴筒
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.8), M.brown);
+    snout.position.set(0, 2.55, 1); g.add(snout);
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.18), M.black);
+    nose.position.set(0, 2.75, 1.4); g.add(nose);
+    
+    // 眼睛
+    const eyeW = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.1), M.white);
+    eyeW.position.set(-0.38, 2.95, 0.86); g.add(eyeW);
+    const eyeW2 = eyeW.clone(); eyeW2.position.x = 0.38; g.add(eyeW2);
+    const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.06), M.black);
+    pupil.position.set(-0.38, 2.95, 0.9); g.add(pupil);
+    const pupil2 = pupil.clone(); pupil2.position.x = 0.38; g.add(pupil2);
+    
+    // 耳朵（品种差异）
+    const earGeo = new THREE.BoxGeometry(0.4, 0.8, 0.28);
+    if(i === 0) { // 毛毛-斑点狗
+        const el = new THREE.Mesh(earGeo, M.white); el.position.set(-1, 3, 0); el.rotation.z = 0.3; g.add(el);
+        const er = new THREE.Mesh(earGeo, M.white); er.position.set(1, 3, 0); er.rotation.z = -0.3; g.add(er);
+    } else if(i === 5) { // 天天
+        const el = new THREE.Mesh(earGeo, M.pink); el.position.set(-1, 2.9, 0); g.add(el);
+        const er = new THREE.Mesh(earGeo, M.pink); er.position.set(1, 2.9, 0); g.add(er);
+    } else {
+        const el = new THREE.Mesh(earGeo, M.brown); el.position.set(-1, 3, 0); g.add(el);
+        const er = new THREE.Mesh(earGeo, M.brown); er.position.set(1, 3, 0); g.add(er);
+    }
+    
+    // 帽子
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.55, 8), hatColor);
+    hat.position.y = 3.7; g.add(hat);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.1, 8), hatColor);
+    brim.position.y = 3.4; g.add(brim);
+    
+    // 腿
+    const legGeo = new THREE.BoxGeometry(0.4, 1, 0.4);
+    [[-0.45,0.5,0.9],[0.45,0.5,0.9],[-0.45,0.5,-0.9],[0.45,0.5,-0.9]].forEach(p => {
+        const l = new THREE.Mesh(legGeo, M.brown); l.position.set(...p); g.add(l);
+    });
+    
+    // 尾巴
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 1.4), M.brown);
+    tail.position.set(0, 1.7, -1.6); tail.rotation.x = Math.PI/3;
+    g.add(tail);
+    
+    // 项圈徽章
+    const cbadge = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.1, 6), M.yellow);
+    cbadge.position.set(0, 2.15, 1.21); cbadge.rotation.x = Math.PI/2;
+    g.add(cbadge);
+    
+    g.position.set(houseCfgs[i].p[0], 0, houseCfgs[i].p[2]);
+    g.visible = false;
+    g.userData = { index: i, tail, orig: houseCfgs[i].p };
+    dogGroup.add(g);
+    dogs.push(g);
+    return g;
+}
+
+[
+    [M.red, M.red], [M.orange, M.orange], [M.yellow, M.yellow],
+    [M.blue, M.darkBlue], [M.green, M.green], [M.pink, M.pink]
+].forEach((c, i) => createDog(i, c[0], c[1]));
+
+// 莱德
+const ryder = new THREE.Group();
+function buildRyder() {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.8, 1.1), M.white);
+    body.position.y = 3; body.castShadow = true; ryder.add(body);
+    
+    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(2.1, 2.8, 0.15), M.blue);
+    shoulder.position.set(0, 3, 0.55); ryder.add(shoulder);
+    
+    const armGeo = new THREE.BoxGeometry(0.42, 1.6, 0.42);
+    const armL = new THREE.Mesh(armGeo, M.skin); armL.position.set(-1.25, 2.4, 0.2); ryder.add(armL);
+    const armR = new THREE.Mesh(armGeo, M.skin); armR.position.set(1.25, 2.4, 0.2); ryder.add(armR);
+    
+    const handGeo = new THREE.BoxGeometry(0.55, 0.55, 0.55);
+    const handL = new THREE.Mesh(handGeo, M.skin); handL.position.set(-1.25, 1.6, 0.35); ryder.add(handL);
+    const handR = new THREE.Mesh(handGeo, M.skin); handR.position.set(1.25, 1.6, 0.35); ryder.add(handR);
+    
+    const pants = new THREE.Mesh(new THREE.BoxGeometry(1.9, 2, 1.2), M.darkBlue);
+    pants.position.y = 1; ryder.add(pants);
+    
+    const belt = new THREE.Mesh(new THREE.BoxGeometry(2, 0.35, 1.25), M.red);
+    belt.position.y = 2; ryder.add(belt);
+    
+    const legGeo = new THREE.BoxGeometry(0.6, 1.8, 0.6);
+    const legL = new THREE.Mesh(legGeo, M.darkBlue); legL.position.set(-0.55, 0.9, 0); ryder.add(legL);
+    const legR = new THREE.Mesh(legGeo, M.darkBlue); legR.position.set(0.55, 0.9, 0); ryder.add(legR);
+    
+    const shoeGeo = new THREE.BoxGeometry(0.65, 0.4, 1);
+    const shoeL = new THREE.Mesh(shoeGeo, M.white); shoeL.position.set(-0.55, 0.2, 0.25); ryder.add(shoeL);
+    const shoeR = new THREE.Mesh(shoeGeo, M.white); shoeR.position.set(0.55, 0.2, 0.25); ryder.add(shoeR);
+    
+    const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.6, 1.4), M.skin);
+    head.position.y = 5.4; ryder.add(head);
+    
+    // 刺猬头发
+    for(let i=0; i<14; i++) {
+        const a = (i/14)*Math.PI*2;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1, 4), M.brown);
+        spike.position.set(Math.cos(a)*0.6, 6.4, Math.sin(a)*0.6);
+        spike.rotation.x = Math.cos(a)*0.8; spike.rotation.z = Math.sin(a)*0.8;
+        ryder.add(spike);
+    }
+    const topSpike = new THREE.Mesh(new THREE.ConeGeometry(0.28, 1.4, 4), M.brown);
+    topSpike.position.y = 6.8; ryder.add(topSpike);
+    
+    // 脸
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.1), M.white);
+    eye.position.set(-0.35, 5.55, 0.71); ryder.add(eye);
+    const eye2 = eye.clone(); eye2.position.x = 0.35; ryder.add(eye2);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.06), M.black);
+    p.position.set(-0.35, 5.55, 0.75); ryder.add(p);
+    const p2 = p.clone(); p2.position.x = 0.35; ryder.add(p2);
+    
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 0.06), M.black);
+    mouth.position.set(0, 5.1, 0.71); ryder.add(mouth);
+    
+    const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.1, 6), M.grey);
+    badge.position.set(0, 3.7, 0.56); badge.rotation.x = Math.PI/2; ryder.add(badge);
+    
+    // 平板
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.1), M.grey);
+    pad.position.set(1.25, 1.6, 0.65); ryder.add(pad);
+    
+    ryder.position.set(0, 0, 16);
+    ryder.rotation.y = Math.PI;
+    towerGroup.add(ryder);
+}
+buildRyder();
+
+// 控制室
+const controlRoom = new THREE.Group();
+const screen = new THREE.Mesh(new THREE.PlaneGeometry(22, 14), new THREE.MeshBasicMaterial({color:0x0066cc}));
+screen.position.set(0, 9, -12); controlRoom.add(screen);
+// 手绘线条
+for(let i=0; i<6; i++) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(20, 0.06, 0.05), new THREE.MeshBasicMaterial({color:0x66aaff}));
+    line.position.set(0, 4+i*2.2, -11.9); controlRoom.add(line);
+}
+const desk = new THREE.Mesh(new THREE.BoxGeometry(10, 1.2, 5), M.darkGrey);
+desk.position.set(0, 2.4, 3); controlRoom.add(desk);
+const btnColors = [0xff0000,0xff8800,0xffff00,0x00ff00,0x0088ff,0xff00ff];
+btnColors.forEach((c,i) => {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.2, 16), new THREE.MeshStandardMaterial({color:c, emissive:c, emissiveIntensity:0.4}));
+    b.position.set(-2.5+i*1, 3.1, 3); controlRoom.add(b);
+});
+controlRoom.visible = false;
+towerGroup.add(controlRoom);
+
+// ==========================================
+// 载具
+// ==========================================
+const vehicles = [];
+function makeVehicle(type, color, pos) {
+    const g = new THREE.Group();
+    if(type === 'fire') {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.4, 5), color);
+        b.position.y = 1.4; b.castShadow = true; g.add(b);
+        const ladder = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 7), M.silver);
+        ladder.position.set(0, 3.2, 0.5); ladder.rotation.x = 0.25; g.add(ladder);
+    } else if(type === 'helicopter') {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.2, 4), color);
+        b.position.y = 1.7; g.add(b);
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 4), color);
+        tail.position.set(0, 2.1, -3.5); g.add(tail);
+        const rotor = new THREE.Mesh(new THREE.BoxGeometry(12, 0.1, 0.8), M.darkGrey);
+        rotor.position.y = 2.9; g.add(rotor);
+        g.userData.rotor = rotor;
+        const tRotor = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2, 0.1), M.darkGrey);
+        tRotor.position.set(0, 2.1, -5.5); g.add(tRotor);
+        g.userData.tailRotor = tRotor;
+    } else {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.8, 4), color);
+        b.position.y = 1.1; g.add(b);
+    }
+    const wGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.4, 12); wGeo.rotateZ(Math.PI/2);
+    [[-1.2,0.6,1.3],[1.2,0.6,1.3],[-1.2,0.6,-1.3],[1.2,0.6,-1.3]].forEach(p => {
+        const w = new THREE.Mesh(wGeo, M.black); w.position.set(...p); g.add(w);
+    });
+    g.position.set(...pos); g.visible = false;
+    towerGroup.add(g); vehicles.push(g); return g;
+}
+
+makeVehicle('fire', M.red, [-22, 0, 22]);
+makeVehicle('normal', M.orange, [-14, 0, 28]);
+makeVehicle('normal', M.yellow, [0, 0, 32]);
+makeVehicle('police', M.blue, [14, 0, 28]);
+makeVehicle('normal', M.green, [22, 0, 22]);
+makeVehicle('helicopter', M.pink, [0, 0, 42]);
+
+// ==========================================
+// 城市场景
+// ==========================================
+function buildCity() {
+    const g = cityGroup;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), M.road);
+    ground.rotation.x = -Math.PI/2; g.add(ground);
+    const colors = [0xffadad,0xffd6a5,0xfdffb6,0xcaffbf,0x9bf6ff,0xa0c4ff,0xbdb2ff,0xffc6ff,0xff99c8];
+    for(let i=0; i<45; i++) {
+        const h = 15+Math.random()*40, w = 12+Math.random()*12;
+        const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), mat(colors[i%9]));
+        const a = Math.random()*Math.PI*2, d = 40+Math.random()*120;
+        b.position.set(Math.cos(a)*d, h/2, Math.sin(a)*d); b.castShadow = true; g.add(b);
+        for(let wy=4; wy<h-3; wy+=6) {
+            const win = new THREE.Mesh(new THREE.PlaneGeometry(w*0.75, 2.5), new THREE.MeshBasicMaterial({color:0xaaddff}));
+            win.position.set(b.position.x, wy, b.position.z+w/2+0.05); g.add(win);
+        }
+    }
+    for(let i=-200; i<200; i+=15) {
+        const line = new THREE.Mesh(new THREE.BoxGeometry(2, 0.05, 6), M.white);
+        line.position.set(i, 0.02, 0); g.add(line);
+    }
+}
+buildCity();
+
+// ==========================================
+// 救援场景
+// ==========================================
+function buildRescue() {
+    const g = rescueGroup;
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(120, 16), M.grass);
+    ground.rotation.x = -Math.PI/2; g.add(ground);
+    
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(3, 4, 16, 8), M.brown);
+    trunk.position.y = 8; g.add(trunk);
+    const leaves = new THREE.Mesh(new THREE.SphereGeometry(14, 8, 6), M.darkGrass);
+    leaves.position.y = 22; g.add(leaves);
+    
+    const cat = new THREE.Group();
+    const cb = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 1.6), M.grey);
+    cat.add(cb);
+    const ch = new THREE.Mesh(new THREE.BoxGeometry(1, 0.9, 1), M.grey);
+    ch.position.set(0, 0.8, 0.4); cat.add(ch);
+    const ce = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.5, 4), M.grey);
+    ce.position.set(-0.3, 1.3, 0.4); cat.add(ce);
+    const ce2 = ce.clone(); ce2.position.x = 0.3; cat.add(ce2);
+    cat.position.set(4, 20, 3); cat.rotation.y = 0.5;
+    g.add(cat);
+    
+    const ladder = new THREE.Group();
+    const r1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 26, 0.3), M.silver);
+    r1.position.set(-0.6, 13, 0); ladder.add(r1);
+    const r2 = r1.clone(); r2.position.x = 0.6; ladder.add(r2);
+    for(let i=0; i<18; i++) {
+        const rung = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.15, 0.15), M.silver);
+        rung.position.set(0, i*1.4, 0); ladder.add(rung);
+    }
+    ladder.position.set(12, 0, 12);
+    ladder.rotation.z = -0.4; ladder.rotation.y = -0.7;
+    g.add(ladder);
+    
+    const net = new THREE.Mesh(
+        new THREE.CylinderGeometry(5, 2.5, 6, 8, 1, true),
+        new THREE.MeshBasicMaterial({color:0x333333, wireframe:true, transparent:true, opacity:0.5})
+    );
+    net.position.set(0, 35, 0); g.add(net);
+    
+    const person = new THREE.Group();
+    const pb = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.8, 0.7), mat(0xff6b6b));
+    pb.position.y = 0.9; person.add(pb);
+    const ph = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), M.skin);
+    ph.position.y = 2.2; person.add(ph);
+    person.position.set(0, 48, 0);
+    g.add(person);
+    g.userData = { person, net };
+}
+buildRescue();
+
+// ==========================================
+// 动画引擎 - 精确时间轴
+// ==========================================
+let globalTime = 0;
+const clock = new THREE.Clock();
+
+function cut() {
+    const el = document.getElementById('cutRed');
+    el.classList.add('active');
+    setTimeout(() => el.classList.remove('active'), 120);
+}
+
+function setCam(x, y, z, lx, ly, lz, fov=55) {
+    camera.position.set(x, y, z);
+    camera.fov = fov; camera.updateProjectionMatrix();
+    if(lx !== undefined) camera.lookAt(lx, ly, lz);
+}
+
+function ease(t) { return t<0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+function update() {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    globalTime += dt;
+    const t = globalTime;
+    
+    // 海洋波动
+    sea.position.y = -4 + Math.sin(t*0.8)*0.4;
+    const pos = seaGeo.attributes.position;
+    for(let i=0; i<pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i);
+        pos.setZ(i, Math.sin(x*0.04+t)*0.6 + Math.cos(y*0.04+t*0.7)*0.6);
+    }
+    pos.needsUpdate = true;
+    
+    // 狗狗尾巴
+    dogs.forEach(d => {
+        if(d.visible && d.userData.tail) d.userData.tail.rotation.z = Math.sin(t*10+d.userData.index)*0.7;
+    });
+    
+    // 载具旋翼
+    vehicles.forEach(v => {
+        if(v.visible && v.userData.rotor) {
+            v.userData.rotor.rotation.y += 0.6;
+            if(v.userData.tailRotor) v.userData.tailRotor.rotation.x += 0.9;
+        }
+    });
+    
+    // ==================== ACT 1: 开场 (0-6s) ====================
+    if(t < 6) {
+        towerGroup.visible = true; cityGroup.visible = false; rescueGroup.visible = false;
+        controlRoom.visible = false; document.getElementById('badgeScene').classList.remove('active');
+        
+        if(t < 0.5) {
+            // 黑屏开始
+            setCam(0, 10, 80, 0, 15, 0);
+        } else if(t < 2.5) {
+            // 穿过门框推进
+            const p = (t-0.5)/2;
+            setCam(0, 8+p*8, 75-p*40, 0, 15, 0);
+        } else if(t < 4.5) {
+            // 快速拉升环绕
+            const p = (t-2.5)/2;
+            const a = p * Math.PI * 0.7;
+            setCam(Math.sin(a)*45, 20+p*20, Math.cos(a)*45, 0, 18, 0);
+        } else {
+            // 俯瞰定格
+            setCam(0, 50, 40, 0, 10, 0);
+        }
+    }
+    
+    // ==================== ACT 2: 控制室+徽章 (6-10s) ====================
+    else if(t < 10) {
+        if(t < 6.15) cut();
+        
+        if(t < 8) {
+            // 控制室
+            controlRoom.visible = true;
+            setCam(0, 6.5, 9, 0, 3, 0, 50);
+            ryder.visible = true;
+            ryder.position.set(0, 0, 4);
+            ryder.rotation.y = 0;
+            // 手指点击
+            ryder.children[2].rotation.x = Math.sin(t*12)*0.4;
+            ryder.children[3].rotation.x = -Math.sin(t*12)*0.2;
+        } else {
+            // 徽章界面
+            controlRoom.visible = false;
+            document.getElementById('badgeScene').classList.add('active');
+            setCam(0, 40, 60, 0, 25, 0);
+            // 依次弹出
+            for(let i=0; i<6; i++) {
+                if(t > 8.2 + i*0.25) {
+                    document.getElementById('b'+i).classList.add('show');
+                }
+            }
+        }
+    }
+    
+    // ==================== ACT 3: 挤出 (10-16s) ====================
+    else if(t < 16) {
+        document.getElementById('badgeScene').classList.remove('active');
+        setCam(18, 6, 18, 0, 2, 0);
+        
+        dogs.forEach((d, i) => {
+            const delay = 10.2 + i * 0.85;
+            if(t > delay && t < delay + 0.7) {
+                d.visible = true;
+                const p = (t - delay) / 0.7;
+                const e = 1-Math.pow(1-p, 3);
+                d.scale.set(e, e, e);
+                d.position.y = Math.sin(p*Math.PI) * 3.5;
+                d.rotation.y += 0.25;
+                // 小屋门动效
+                houses[i].scale.x = 1 + Math.sin(p*Math.PI)*0.4;
+            } else if(t >= delay + 0.7) {
+                d.scale.set(1,1,1); d.position.y = 0;
+                houses[i].scale.x = 1;
+            }
+        });
+    }
+    
+    // ==================== ACT 4: 莱德挥手 (16-19s) ====================
+    else if(t < 19) {
+        setCam(0, 4, 10, 0, 3, 0, 45);
+        ryder.position.set(0, 0, 0);
+        ryder.rotation.y = 0;
+        ryder.children[2].rotation.x = Math.sin(t*8)*0.5; // 挥手
+        ryder.children[3].rotation.x = -Math.sin(t*6)*0.3;
+    }
+    
+    // ==================== ACT 5: 滑梯 (19-25s) ====================
+    else if(t < 25) {
+        setCam(20, 10, 20, 0, 6, 0);
+        
+        dogs.forEach((d, i) => {
+            if(!d.visible) d.visible = true;
+            const delay = 19.2 + i * 0.7;
+            if(t > delay && t < delay + 3) {
+                const p = Math.min((t - delay) / 3, 1);
+                const pos = slideCurve.getPointAt(p);
+                d.position.copy(pos);
+                d.position.y += 0.3; // 浮空感
+                d.rotation.z = p * Math.PI * 6;
+                // 朝向
+                const tan = slideCurve.getTangentAt(p);
+                d.rotation.y = Math.atan2(tan.x, tan.z);
+            } else if(t >= delay + 3 && t < delay + 3.8) {
+                // 跳向载具
+                const v = vehicles[i];
+                if(v) {
+                    v.visible = true;
+                    const target = new THREE.Vector3(v.position.x, 1.2, v.position.z);
+                    d.position.lerp(target, 0.15);
+                    d.rotation.z *= 0.85;
+                }
+            }
+        });
+    }
+    
+    // ==================== ACT 6: 载具展示 (25-32s) ====================
+    else if(t < 32) {
+        setCam(0, 12, 50, 0, 0, 20);
+        vehicles.forEach(v => v.visible = true);
+        dogs.forEach((d, i) => {
+            const v = vehicles[i];
+            if(v) d.position.set(v.position.x, v.position.y+1.2, v.position.z);
+        });
+        // 莱德上车
+        if(t > 28) {
+            ryder.position.lerp(new THREE.Vector3(0, 1.2, 24), 0.1);
+        }
+    }
+    
+    // ==================== ACT 7: 城市 (32-38s) ====================
+    else if(t < 38) {
+        if(t < 32.15) cut();
+        towerGroup.visible = false; cityGroup.visible = true; rescueGroup.visible = false;
+        document.getElementById('badgeScene').classList.remove('active');
+        
+        vehicles.forEach((v, i) => {
+            v.visible = true;
+            if(v.userData.rotor) {
+                v.position.y = 16 + Math.sin(t+i)*4;
+                v.position.x = Math.sin(t*0.35+i)*30;
+                v.position.z = Math.cos(t*0.35+i)*30;
+            } else {
+                v.position.x += dt * 15;
+                if(v.position.x > 70) v.position.x = -70;
+            }
+            dogs[i].position.set(v.position.x, v.position.y+1.2, v.position.z);
+        });
+        
+        // 电影跟拍
+        camera.position.x = Math.sin(t*0.22)*55;
+        camera.position.z = Math.cos(t*0.22)*55;
+        camera.position.y = 15 + Math.sin(t*0.5)*5;
+        camera.lookAt(0, 0, 0);
+    }
+    
+    // ==================== ACT 8: 救援 (38-45s) ====================
+    else if(t < 45) {
+        if(t < 38.15) cut();
+        cityGroup.visible = false; rescueGroup.visible = true;
+        
+        setCam(30, 16, 30, 4, 18, 2);
+        
+        dogs[0].visible = true;
+        dogs[0].position.set(10, 0, 12);
+        dogs[0].lookAt(4, 18, 2);
+        
+        const {person, net} = rescueGroup.userData;
+        if(person) {
+            if(t > 40 && t < 43.5) {
+                person.position.y = 48 - (t-40)*8;
+                person.rotation.x += 0.12;
+                person.rotation.z += 0.08;
+            } else if(t >= 43.5) {
+                person.position.y = 20;
+                person.rotation.set(0, 0, 0);
+            }
+        }
+        if(net) net.position.y = 32 + Math.sin(t)*2;
+    }
+    
+    // ==================== ACT 9: 鬼畜结局 (45-55s) ====================
+    else if(t < 55) {
+        if(t < 45.15) cut();
+        rescueGroup.visible = false; towerGroup.visible = true;
+        document.getElementById('glitchLayer').classList.add('active');
+        
+        setCam(0, 8, 30, 0, 2, 0);
+        
+        // 莱德鬼畜
+        ryder.visible = true;
+        ryder.position.set(0, Math.abs(Math.sin(t*15))*0.6, 0);
+        ryder.rotation.y += dt * 12;
+        
+        const hue = (t * 0.8) % 1;
+        ryder.children.forEach(c => {
+            if(c.material && c.material.color && c.geometry.type !== 'BoxGeometry') { // 避免改太多
+                c.material = c.material.clone();
+                c.material.color.setHSL(hue, 0.7, 0.5);
+            }
+        });
+        
+        // 狗狗冲撞
+        dogs.forEach((d, i) => {
+            if(!d.visible) d.visible = true;
+            const a = t * 4 + i * 1.5;
+            d.position.x = Math.sin(a) * 12;
+            d.position.z = Math.cos(a) * 12;
+            d.lookAt(ryder.position);
+            // 冲撞判定
+            if(d.position.distanceTo(ryder.position) < 2.5) {
+                ryder.position.x += (Math.random()-0.5)*4;
+                ryder.position.z += (Math.random()-0.5)*4;
+            }
+        });
+        
+        // 相机抖动
+        camera.position.x += (Math.random()-0.5)*0.6;
+        camera.position.y += (Math.random()-0.5)*0.6;
+    }
+    
+    // ==================== END (55s+) ====================
+    else {
+        document.getElementById('glitchLayer').classList.remove('active');
+        document.getElementById('endCard').classList.add('active');
+        
+        if(t > 58) {
+            // 循环
+            globalTime = 0;
+            document.getElementById('endCard').classList.remove('active');
+            dogs.forEach(d => { d.visible = false; d.position.set(d.userData.orig[0],0,d.userData.orig[2]); d.rotation.set(0,0,0); });
+            vehicles.forEach(v => { v.visible = false; });
+            ryder.position.set(0,0,16); ryder.rotation.y = Math.PI;
+            for(let i=0; i<6; i++) document.getElementById('b'+i).classList.remove('show');
+        }
+    }
+    
+    renderer.render(scene, camera);
+    requestAnimationFrame(update);
+}
+
+// 启动
+document.getElementById('loader').classList.add('hidden');
+update();
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
